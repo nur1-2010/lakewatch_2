@@ -134,14 +134,76 @@ async function mountTerrain(options = {}) {
     prominent: options.focusId ? l.id === options.focusId : needsAttention(l),
   }));
   try {
-    const terrain = await createTerrain(host, lakes, options);
+    const terrain = await createTerrain(host, lakes, {
+      ...options, mode: state.terrainMode,
+      onSelect: (id) => showSceneCard(id, options.focusId),
+    });
     if (myRender !== state.renderId) { terrain.dispose(); return; }     // пока грузилось, страницу сменили
     state.terrain = terrain;
+    mountSceneUi(host, terrain);
   } catch (err) {
     console.error(err);
     hero.classList.add("no-3d");
   }
 }
+
+// Кнопки «Спутник / Рельеф», подсказка и карточка выбранного озера поверх 3D-сцены.
+function mountSceneUi(host, terrain) {
+  const ui = document.createElement("div");
+  ui.className = "t3d-ui";
+  ui.innerHTML = `
+    <div class="t3d-tools">
+      ${terrain.hasSatellite ? `<div class="t3d-modes" role="group" aria-label="${esc(t("terrain.mode"))}">
+        <button type="button" data-mode="satellite">${esc(t("terrain.satellite"))}</button>
+        <button type="button" data-mode="relief">${esc(t("terrain.relief"))}</button>
+      </div>` : ""}
+      <p class="t3d-tip">${esc(t("terrain.tip"))}</p>
+    </div>
+    <section class="t3d-card" id="t3d-card" hidden aria-live="polite"></section>`;
+  host.appendChild(ui);
+  const syncModes = () => ui.querySelectorAll("[data-mode]").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.mode === terrain.mode)));
+  ui.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+    state.terrainMode = terrain.setMode(b.dataset.mode);
+    syncModes();
+  }));
+  syncModes();
+}
+
+// Карточка озера, выбранного на 3D-сцене. Стрелки листают озёра по порядку списка,
+// и камера каждый раз перелетает к следующему — так можно обойти все озёра, не уходя со сцены.
+function showSceneCard(id, pageLakeId = null) {
+  const card = document.getElementById("t3d-card");
+  if (!card) return;
+  const lake = state.lakes.find((l) => l.id === id);
+  if (!lake || id === pageLakeId) { card.hidden = true; card.innerHTML = ""; return; }
+  const list = state.lakes;
+  const i = list.indexOf(lake);
+  const cur = lake.current, yoy = lake.year_over_year;
+  const where = [lake.elevation_m ? `${number(lake.elevation_m)} ${t("units.m")}` : "", drainText(lake)].filter(Boolean).join(" · ");
+  card.innerHTML = `
+    <button type="button" class="t3d-close" data-act="close" aria-label="${esc(t("scene.close"))}">×</button>
+    <div>${badge(lake)}</div>
+    <h3>${esc(name(lake.name))}</h3>
+    ${cur ? `<p class="t3d-card-area num"><b>${esc(area(cur.area_m2))}</b>
+      ${yoy && lake.status !== "new_lake" ? delta(yoy.change_pct, t("card.vs_prev", { year: yoy.prev_year })) : ""}</p>` : ""}
+    ${where ? `<p class="t3d-card-where">${esc(where)}</p>` : ""}
+    <p class="t3d-card-head">${lake.headline ? esc(msg(lake.headline)) : ""}</p>
+    <div class="t3d-card-actions">
+      <button type="button" class="t3d-step" data-act="prev" aria-label="${esc(t("scene.prev"))}">${icon("chevron", "sm")}</button>
+      <a class="btn primary" href="${lakeHref(lake.id)}">${esc(t("card.open"))}${icon("chevron", "sm")}</a>
+      <button type="button" class="t3d-step" data-act="next" aria-label="${esc(t("scene.next"))}">${icon("chevron", "sm")}</button>
+    </div>
+    <p class="t3d-card-count num">${i + 1} / ${list.length}</p>`;
+  card.hidden = false;
+  const go = (step) => state.terrain?.select(list[(i + step + list.length) % list.length].id);
+  card.querySelector('[data-act="close"]').addEventListener("click", () => state.terrain?.select(null));
+  card.querySelector('[data-act="prev"]').addEventListener("click", () => go(-1));
+  card.querySelector('[data-act="next"]').addEventListener("click", () => go(1));
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !document.getElementById("t3d-card")?.hidden) state.terrain?.select(null);
+});
 
 // ------------------------------------------------------------------ общие элементы
 
@@ -283,7 +345,7 @@ function renderHome() {
       </div>
     </div>
   </section>`, "hero", () => {
-    mountTerrain({ labels: "prominent", frame: "block", distance: 46, elevation: 0.34, azimuth: 0.2, shiftX: 0.17, shiftY: 0.02 });
+    mountTerrain({ labels: "prominent", frame: "block", distance: 46, elevation: 0.34, azimuth: 0.2, shiftX: 0.17, shiftY: 0.02, focusDistance: 21 });
     bindTimeMachine(o);
   });
 
@@ -579,6 +641,15 @@ function tabImages(d) {
     : `<section class="block"><p class="muted">${esc(t("headline.insufficient", { count: 0, years: 0 }))}</p></section>`;
 }
 
+// Таблица измерений собирается прямо в браузере из уже загруженных данных,
+// поэтому отдельные файлы .csv на сервере не нужны.
+const CSV_FIELDS = ["date", "area_m2", "scl_water_m2", "cloud_pct", "snow_pct", "valid", "rejected_reason"];
+function csvHref(series) {
+  const cell = (v) => (v === null || v === undefined ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  const rows = [CSV_FIELDS.join(","), ...(series || []).map((p) => CSV_FIELDS.map((f) => cell(p[f])).join(","))];
+  return `data:text/csv;charset=utf-8,${encodeURIComponent(rows.join("\n") + "\n")}`;
+}
+
 function tabPlace(d) {
   const lake = d.lake;
   return `
@@ -592,7 +663,7 @@ function tabPlace(d) {
         <h2 id="facts-h">${esc(t("detail.facts"))}</h2>
         <dl class="facts">${factRows(lake)}</dl>
         <div class="actions">
-          <a class="btn primary" href="${API}/lakes/${encodeURIComponent(lake.id)}/observations.csv" download>${icon("download", "sm")}${esc(t("detail.download"))}</a>
+          <a class="btn primary" href="${csvHref(d.series)}" download="${esc(lake.id)}_observations.csv">${icon("download", "sm")}${esc(t("detail.download"))}</a>
           ${lake.osm_id ? `<a class="btn" href="https://www.openstreetmap.org/${esc(lake.osm_id)}" target="_blank" rel="noopener">${icon("external", "sm")}${esc(t("detail.osm"))}</a>` : ""}
         </div>
       </section>
@@ -709,24 +780,91 @@ const sourceList = (items) => `<ul class="source-list">${items.map(([label, url]
   `<li><a href="${esc(url)}" target="_blank" rel="noopener">${icon("external", "sm")}${esc(label)}</a></li>`).join("")}</ul>`;
 const step = (n, title, text) => `<section class="step">${n ? `<span class="n num" aria-hidden="true">${n}</span>` : ""}<h2>${esc(title)}</h2><p>${esc(text)}</p></section>`;
 
-function renderRisk() {
+// Сели, которые уже случались. Тексты — в i18n (ключи mud.<id>.*), здесь — вид события,
+// снимок места (если он есть) и источники. Все цифры взяты из перечисленных источников.
+const MUDFLOWS = [
+  { id: "1921", kind: "rain", sources: [
+    ["Самые разрушительные сели Алматы — tengrinews.kz", "https://tengrinews.kz/mixnews/muzcinu-proneslo-potokom-ves-gorod-samye-razrusitelnye-seli-376452/"],
+    ["Самые громкие природные бедствия — nur.kz", "https://www.nur.kz/society/1492594-samye-gromkie-prirodnye-bedstviya-pro/"],
+    ["Яфязова Р. К., 2007 — Казгидромет (PDF)", "https://www.kazhydromet.kz/files/Yafyazova_2007.pdf"]] },
+  { id: "1963", kind: "outburst", image: "issyk", sources: [
+    ["Иссыкской трагедии — полвека — forbes.kz", "https://forbes.kz/articles/issyikskoy_tragedii_-_polveka"],
+    ["Lake Issyk — Wikipedia", "https://en.wikipedia.org/wiki/Lake_Issyk"]] },
+  { id: "1973", kind: "outburst", image: "medeu", sources: [
+    ["Field trip: Kishi and Ulken Almaty — debrisflow.ru (PDF)", "https://www.debrisflow.ru/wp-content/uploads/2015/09/Fierld_trip_Kishi_Ulken_Almaty.pdf"],
+    ["Medeu Dam — Wikipedia", "https://www.wikipedia.org/wiki/Medeu_Dam"],
+    ["Сель 1973-го: как Алматы спасли от разрушения — informburo.kz", "https://informburo.kz/stati/sel-1973-go-kak-almaty-spasli-ot-razruseniya"]] },
+  { id: "1977", kind: "outburst", sources: [
+    ["Моренные озёра в предгорьях Алматы — sputnik.kz", "https://ru.sputnik.kz/20190628/morennye-ozera-almaty-sel-ugroza-10740470.html"],
+    ["Гляциальные сели в Заилийском Алатау за 120 лет — «Лёд и снег»", "https://ice-snow.igras.ru/jour/article/viewFile/801/512"],
+    ["Шесть моренных озёр остаются потенциально опасными — bes.media", "https://bes.media/news/shest-morennyh-ozer-v-almaty-ostayutsya-potentsialno-opasnymi-kak-gorod-zaschischayut-ot-seley/"]] },
+  { id: "2015", kind: "outburst", sources: [
+    ["Что известно о последнем крупном селе в Алматы — zakon.kz", "https://www.zakon.kz/redaktsiia-zakonkz/4981430-chto-izvestno-o-poslednem-krupnom-sele.html"],
+    ["Причина селя — прорыв моренного озера — caravan.kz", "https://www.caravan.kz/news/yurijj-ilin-prichina-selya-proryv-morennogo-ozera-351581/"],
+    ["Сель в Алматы глазами очевидцев — informburo.kz", "https://informburo.kz/novosti/sel-v-almaty-glazami-ochevidcev-8899.html"]] },
+  { id: "2024", kind: "human", image: "shymbulak", sources: [
+    ["Антропогенный сель в бассейне Шымбулака 30 июня 2024 г. — журнал Казгидромета", "https://journal.kazhydromet.kz/kazgidro/article/view/2351"]] },
+];
+const KIND_ICON = { rain: "droplet", outburst: "alert", human: "layers" };
+
+function mudflowCard(ev, imageDate) {
+  const k = (f) => t(`mud.${ev.id}.${f}`);
+  const rows = ["cause", "course", "damage"].map((f) =>
+    `<div><dt>${esc(t(`mud.label.${f}`))}</dt><dd>${esc(k(f))}</dd></div>`).join("");
+  return `
+  <li class="mud" id="mud-${ev.id}">
+    <div class="mud-year num" aria-hidden="true">${ev.id}</div>
+    <article class="mud-body">
+      <p class="mud-meta"><span class="mud-kind kind-${ev.kind}">${icon(KIND_ICON[ev.kind], "sm")}${esc(t(`mud.kind.${ev.kind}`))}</span>
+        <span>${esc(k("date"))}</span></p>
+      <h3>${esc(k("title"))}</h3>
+      <p class="mud-place">${esc(k("place"))}</p>
+      <div class="mud-grid ${ev.image ? "" : "no-img"}">
+        <dl class="mud-facts">${rows}</dl>
+        ${ev.image ? `<figure class="mud-fig"><img src="assets/history/${ev.image}.jpg" alt="${esc(k("img"))}" width="600" height="600" loading="lazy">
+          <figcaption>${esc(k("img"))}. ${esc(t("mud.img_note", { date: imageDate ? fmtDate(imageDate) : "" }))}</figcaption></figure>` : ""}
+      </div>
+      <details class="mud-src"><summary>${esc(t("mud.sources"))}</summary>${sourceList(ev.sources)}</details>
+    </article>
+  </li>`;
+}
+
+async function renderRisk() {
   pageHead("risk", t("risk.title"), t("page.risk.lead"));
+  const counts = MUDFLOWS.reduce((acc, ev) => ({ ...acc, [ev.kind]: (acc[ev.kind] || 0) + 1 }), {});
   view.innerHTML = `
   <div class="fade-in">
     <div class="prose-grid three">
       ${[1, 2, 3].map((n) => `<section class="step"><span class="n num" aria-hidden="true">0${n}</span><p>${esc(t(`risk.p${n}`))}</p></section>`).join("")}
     </div>
     <section class="section" aria-labelledby="hist-h">
-      <div class="section-head"><h2 id="hist-h">${esc(t("history.title"))}</h2></div>
-      <ol class="timeline">
-        ${[1963, 1973, 1977].map((y) => `<li><b class="num">${y}</b><span>${esc(t(`history.${y}`))}</span></li>`).join("")}
-      </ol>
-      <p class="hint-text">${esc(t("history.source"))}</p>
-      ${sourceList(SOURCES.risk)}
+      <div class="section-head"><div><h2 id="hist-h">${esc(t("mud.title"))}</h2><p>${esc(t("mud.lead"))}</p></div></div>
+      <dl class="figures mud-figures">
+        ${figure(t("mud.stat.total"), String(MUDFLOWS.length), esc(`${MUDFLOWS[0].id}–${MUDFLOWS[MUDFLOWS.length - 1].id}`))}
+        ${figure(t("mud.kind.outburst"), String(counts.outburst || 0), esc(t("mud.stat.outburst")), "attn")}
+        ${figure(t("mud.kind.rain"), String(counts.rain || 0), esc(t("mud.stat.rain")))}
+        ${figure(t("mud.kind.human"), String(counts.human || 0), esc(t("mud.stat.human")))}
+      </dl>
+      <ol class="muds" id="muds">${MUDFLOWS.map((ev) => mudflowCard(ev, null)).join("")}</ol>
+      <p class="hint-text">${esc(t("mud.note"))}</p>
+    </section>
+    <section class="statement lvl-watch section" aria-labelledby="lesson-h">
+      <h2 id="lesson-h">${icon("info", "sm")}${esc(t("mud.lesson.title"))}</h2>
+      <p>${esc(t("mud.lesson.text"))}</p>
     </section>
     <div class="next-links section"><a class="btn primary" href="#/map">${esc(t("tile.map.t"))}${icon("chevron", "sm")}</a>
       <a class="btn" href="#/method">${esc(t("tile.method.t"))}</a></div>
   </div>`;
+  // дата спутникового снимка — та же, что у 3D-рельефа; подставляем её в подписи к фотографиям мест
+  try {
+    const meta = await (await fetch("assets/terrain/terrain.json")).json();
+    if (meta.satellite_date) {
+      view.querySelectorAll(".mud-fig figcaption").forEach((fc, i) => {
+        const ev = MUDFLOWS.filter((e) => e.image)[i];
+        fc.textContent = `${t(`mud.${ev.id}.img`)}. ${t("mud.img_note", { date: fmtDate(meta.satellite_date) })}`;
+      });
+    }
+  } catch { /* без даты подпись тоже понятна */ }
 }
 
 function renderMethod() {
@@ -766,6 +904,21 @@ function parseRoute() {
   return { page: "home" };
 }
 
+// Полоска загрузки вверху страницы: видна, пока подгружаются данные озера.
+const progress = document.getElementById("progress");
+function busy(on) {
+  if (!progress) return;
+  progress.hidden = !on;
+  view.setAttribute("aria-busy", String(on));
+}
+
+// Название вкладки браузера меняется вместе со страницей сайта.
+const PAGE_TITLE = { lakes: "page.lakes.title", map: "page.map.title", risk: "risk.title", method: "method.title", about: "about.title" };
+function setTitle(r) {
+  const page = r.page === "lake" ? name(state.details[r.id]?.lake?.name) : PAGE_TITLE[r.page] ? t(PAGE_TITLE[r.page]) : "";
+  document.title = page ? `${page} — LakeWatch` : t("app.title");
+}
+
 let lastRoute = null;
 async function route({ keepScroll = false } = {}) {
   if (state.map) { state.map.remove(); state.map = null; }
@@ -773,12 +926,16 @@ async function route({ keepScroll = false } = {}) {
   const sameLake = lastRoute?.page === "lake" && r.page === "lake" && lastRoute.id === r.id;
   try {
     if (r.page === "lake") {
-      state.details[r.id] ??= await getJSON(`lakes/${encodeURIComponent(r.id)}`);
+      if (!state.details[r.id]) {
+        busy(true);
+        try { state.details[r.id] = await getJSON(`lakes/${encodeURIComponent(r.id)}`); } finally { busy(false); }
+      }
       renderLake(state.details[r.id], r.tab);
     } else {
       ({ home: renderHome, lakes: renderLakes, map: renderMap, risk: renderRisk, method: renderMethod, about: renderAbout })[r.page]();
     }
     setActiveNav(r.page === "lake" ? "lakes" : r.page);
+    setTitle(r);
     if (!keepScroll) {
       if (sameLake) {
         // смена вкладки: остаёмся у вкладок, а не прыгаем в начало страницы

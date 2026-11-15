@@ -86,8 +86,17 @@ function terrainColor(elev, flatness) {
  * @param lakes      [{id, lon, lat, level, label, sub, area_m2, href}]
  * @param options    {focusId, labels: "all"|"focus", distance, elevation, interactive}
  */
+// Спутниковый снимок для «одевания» рельефа: грузится один раз на всю сессию.
+let satellitePromise = null;
+function loadSatellite(meta) {
+  if (!meta.satellite) return Promise.resolve(null);
+  satellitePromise ??= loadImage(`assets/terrain/${meta.satellite}`).catch(() => null);
+  return satellitePromise;
+}
+
 export async function createTerrain(container, lakes, options = {}) {
   const { meta, W, H, h } = await loadHeightmap();
+  const satImg = await loadSatellite(meta);
   const [x0, y0, x1, y1] = meta.bbox;
   const latC = (y0 + y1) / 2, lonC = (x0 + x1) / 2;
   const kmLon = 111.32 * Math.cos((latC * Math.PI) / 180), kmLat = 110.574;
@@ -113,7 +122,8 @@ export async function createTerrain(container, lakes, options = {}) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 400);
-  scene.add(new THREE.HemisphereLight(0xd8f0ea, 0x1f3a33, 0.72));     // небо бирюзовое, от земли — зелёный отсвет
+  const hemi = new THREE.HemisphereLight(0xd8f0ea, 0x1f3a33, 0.72);  // небо бирюзовое, от земли — зелёный отсвет
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffe2bd, 0.95);             // тёплый рассветный свет
   sun.position.set(-14, 16, -6);               // низкое утреннее солнце с востока
   scene.add(sun);
@@ -147,15 +157,48 @@ export async function createTerrain(container, lakes, options = {}) {
     col[v * 4] = c[0]; col[v * 4 + 1] = c[1]; col[v * 4 + 2] = c[2];
     col[v * 4 + 3] = smooth(0, FADE, ex) * smooth(0, FADE, ez);
   }
-  geo.setAttribute("color", new THREE.BufferAttribute(col, 4));
-  const terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0, transparent: true }));
+  // Два вида рельефа: «Спутник» — настоящий снимок Sentinel-2, натянутый на горы,
+  // и «Рельеф» — раскраска по высоте (лес, луга, камень, снег).
+  const reliefColors = new THREE.BufferAttribute(col, 4);
+  const satColors = new Float32Array(W * H * 4);        // белый цвет: снимок не перекрашивается, только прозрачность у краёв
+  const uv = new Float32Array(W * H * 2);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const v = j * W + i;
+    satColors.set([1, 1, 1, col[v * 4 + 3]], v * 4);
+    uv[v * 2] = i / (W - 1);
+    uv[v * 2 + 1] = 1 - j / (H - 1);                    // север — у верхнего края снимка
+  }
+  const satelliteColors = new THREE.BufferAttribute(satColors, 4);
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute("color", reliefColors);
+  const reliefMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0, transparent: true });
+  let satMat = null;
+  if (satImg) {
+    const tex = new THREE.Texture(satImg);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    tex.needsUpdate = true;
+    satMat = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: 1, metalness: 0, transparent: true });
+  }
+  const terrain = new THREE.Mesh(geo, reliefMat);
   scene.add(terrain);
+  let mode = "relief";
+  function setMode(next) {
+    mode = next === "satellite" && satMat ? "satellite" : "relief";
+    terrain.material = mode === "satellite" ? satMat : reliefMat;
+    geo.setAttribute("color", mode === "satellite" ? satelliteColors : reliefColors);
+    // на снимке свет и тени уже есть — освещение сцены делаем мягче, чтобы не было «двойных» теней
+    hemi.intensity = mode === "satellite" ? 1.05 : 0.72;
+    sun.intensity = mode === "satellite" ? 0.5 : 0.95;
+    requestRender?.();
+    return mode;
+  }
 
   // Боковых стенок нет: к краям рельеф становится прозрачным и растворяется в небе.
 
   // ---------------------------------------------------------------- озёра
-  const markers = lakes.map((lake) => {
+  // невидимые сферы вокруг меток: по ним ловится нажатие (сама точка слишком мелкая, чтобы в неё попасть)
+  const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+  const markers = lakes.map((lake, index) => {
     const [x, z] = toXZ(lake.lon, lake.lat);
     const y = yOf(elevAt(lake.lon, lake.lat));
     const color = LEVEL_COLOR[lake.level] ?? LEVEL_COLOR.info;
@@ -191,6 +234,10 @@ export async function createTerrain(container, lakes, options = {}) {
       pole.position.y = poleH / 2;
       group.add(pole);
     }
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(tall ? 0.55 : 0.45, 10, 8), hitMat);
+    hit.position.y = tall ? poleH : 0.25;
+    hit.userData.index = index;
+    group.add(hit);
     scene.add(group);
 
     const label = document.createElement(lake.href ? "a" : "div");
@@ -201,8 +248,14 @@ export async function createTerrain(container, lakes, options = {}) {
     label.innerHTML = `<i></i><span><b></b><small></small></span>`;
     label.querySelector("b").textContent = lake.label;
     label.querySelector("small").textContent = lake.sub || "";
+    // нажатие на подпись выбирает озеро прямо на сцене (камера перелетает к нему), а не уводит со страницы
+    label.addEventListener("click", (e) => {
+      if (!options.onSelect) return;
+      e.preventDefault();
+      select(lake.id);
+    });
     labelLayer.appendChild(label);
-    return { lake, group, head, pulse, label, disc, byYear, scaleFor, scale: nowScale, scaleGoal: nowScale, nowScale,
+    return { lake, group, head, pulse, label, hit, disc, byYear, scaleFor, scale: nowScale, scaleGoal: nowScale, nowScale,
              top: new THREE.Vector3(x, y + poleH, z), ground: new THREE.Vector3(x, y, z),
              animate: lake.level === "alert" || lake.level === "watch" };
   });
@@ -217,6 +270,8 @@ export async function createTerrain(container, lakes, options = {}) {
   const view = { az: options.azimuth ?? 0.25, el: options.elevation ?? 0.44, dist: options.distance ?? 27, target: home.clone() };
   const goal = { el: view.el, dist: view.dist, target: home.clone() };
   let baseAz = view.az, focusId = null, dragging = false, lastX = 0, lastY = 0, userAz = 0, t0 = performance.now(), last = t0;
+  let selectedId = null, hoverId = null, downX = 0, downY = 0, moved = 0;
+  let pointerInside = false, touched = false, swayT = 0;
 
   function focus(id, { immediate = false } = {}) {
     focusId = id;
@@ -224,8 +279,27 @@ export async function createTerrain(container, lakes, options = {}) {
     if (m) { goal.target.copy(m.ground); goal.dist = options.focusDistance ?? 13; goal.el = 0.5; }
     else { goal.target.copy(home); goal.dist = options.distance ?? 27; goal.el = options.elevation ?? 0.44; }
     if (immediate) { view.target.copy(goal.target); view.dist = goal.dist; view.el = goal.el; }
-    markers.forEach((mk) => mk.label.classList.toggle("is-focus", mk.lake.id === id));
+    markers.forEach((mk) => mk.label.classList.toggle("is-focus", mk.lake.id === (selectedId ?? id)));
     requestRender();
+  }
+
+  // Выбор озера на сцене: камера плавно перелетает к нему, страница показывает карточку.
+  // id = null — снять выбор и вернуться к исходному виду.
+  function select(id, { notify = true } = {}) {
+    selectedId = markers.some((m) => m.lake.id === id) ? id : null;
+    focus(selectedId ?? options.focusId ?? null);
+    if (notify) options.onSelect?.(selectedId);
+  }
+
+  // Какая метка под указателем (по невидимым сферам вокруг меток).
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const hitList = markers.map((m) => m.hit);
+  function pickAt(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hits = ray.intersectObjects(hitList, false);
+    return hits.length ? markers[hits[0].object.userData.index] : null;
   }
 
   // «Машина времени»: показать озёра такими, какими они были в выбранном году.
@@ -252,8 +326,9 @@ export async function createTerrain(container, lakes, options = {}) {
     const boxes = [];
     const order = [...markers].sort((a, b) => a.top.distanceToSquared(camera.position) - b.top.distanceToSquared(camera.position));
     for (const m of order) {
-      const showLabel = m.lake.id === focusId || options.labels === "all" ||
-        (options.labels === "prominent" && m.lake.labelled === true);
+      const id = m.lake.id;
+      const showLabel = id === focusId || id === selectedId || id === hoverId || options.labels === "all" ||
+        (options.labels === "prominent" && m.lake.labelled === true && selectedId === null);
       v.copy(m.top).project(camera);
       const visible = showLabel && v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
       m.label.style.display = visible ? "" : "none";
@@ -303,7 +378,11 @@ export async function createTerrain(container, lakes, options = {}) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     const k = 1 - Math.exp(-dt * 3.2);
     const t = (now - t0) / 1000;
-    const sway = still || dragging ? 0 : Math.sin(t * 0.16) * (focusId ? 0.22 : 0.42);
+    // Сцена медленно покачивается, пока с ней не начали работать. Как только указатель над сценой
+    // или озеро выбрано — качание замирает на месте, иначе точка уезжает из-под курсора.
+    const swayOn = !still && !dragging && !pointerInside && !touched && selectedId === null;
+    swayT += swayOn ? dt : 0;
+    const sway = Math.sin(swayT * 0.16) * (focusId ? 0.22 : 0.42);
     const azGoal = baseAz + userAz + sway;
     const moving = Math.abs(azGoal - view.az) > 1e-4 || Math.abs(goal.dist - view.dist) > 1e-3 ||
       Math.abs(goal.el - view.el) > 1e-4 || view.target.distanceToSquared(goal.target) > 1e-6;
@@ -322,8 +401,12 @@ export async function createTerrain(container, lakes, options = {}) {
     }
 
     let pulsing = false;
+    for (const m of markers) {                 // выбранная метка чуть крупнее
+      const s = m.lake.id === selectedId ? 1.6 : 1;
+      if (m.head.scale.x !== s) { m.head.scale.setScalar(s); needsRender = true; }
+    }
     if (!still) for (const m of markers) {
-      if (!m.animate) continue;
+      if (!m.animate && m.lake.id !== selectedId) { m.pulse.material.opacity = 0; continue; }
       pulsing = true;
       const ph = (t * 0.55 + m.ground.x * 0.13) % 1;
       m.pulse.scale.setScalar(1 + ph * 2.6);
@@ -340,12 +423,32 @@ export async function createTerrain(container, lakes, options = {}) {
   function requestRender() { needsRender = true; if (!raf && !disposed) { last = performance.now(); raf = requestAnimationFrame(frame); } }
 
   // ---------------------------------------------------------------- управление
-  const onDown = (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture?.(e.pointerId); canvas.classList.add("is-drag"); requestRender(); };
+  const onDown = (e) => {
+    dragging = true; moved = 0; touched = true;
+    lastX = downX = e.clientX; lastY = downY = e.clientY;
+    canvas.setPointerCapture?.(e.pointerId); canvas.classList.add("is-drag"); requestRender();
+  };
+  let hoverQueued = false, hoverX = 0, hoverY = 0;
   const onMove = (e) => {
-    if (!dragging) return;
+    if (!dragging) {
+      // наведение мышью: подсвечиваем озеро под курсором и показываем его название
+      if (e.pointerType !== "mouse") return;
+      hoverX = e.clientX; hoverY = e.clientY;
+      if (hoverQueued) return;
+      hoverQueued = true;
+      requestAnimationFrame(() => {
+        hoverQueued = false;
+        const m = pickAt(hoverX, hoverY);
+        const id = m ? m.lake.id : null;
+        canvas.style.cursor = m ? "pointer" : "";
+        if (id !== hoverId) { hoverId = id; requestRender(); }
+      });
+      return;
+    }
     // Кнопка уже отпущена (например, над подписью или за окном), а событие «отпускания» до нас
     // не дошло — без этой проверки сцена «прилипала» к курсору и продолжала вращаться.
     if (e.pointerType === "mouse" && !(e.buttons & 1)) { onUp(); return; }
+    moved += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
     userAz -= (e.clientX - lastX) * 0.006;
     goal.el = Math.min(1.1, Math.max(0.18, goal.el + (e.clientY - lastY) * 0.004));
     view.el = goal.el;
@@ -353,10 +456,22 @@ export async function createTerrain(container, lakes, options = {}) {
     requestRender();
   };
   const onUp = () => { dragging = false; canvas.classList.remove("is-drag"); };
+  // Отпускание на сцене: если указатель почти не двигался — это нажатие, а не поворот.
+  const onCanvasUp = (e) => {
+    const wasDrag = dragging;
+    onUp();
+    if (!wasDrag || moved > 6 || Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
+    const m = pickAt(e.clientX, e.clientY);
+    if (m) select(m.lake.id);
+    else if (selectedId !== null) select(null);      // нажатие мимо озёр закрывает карточку
+  };
   if (options.interactive !== false) {
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
-    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointerup", onCanvasUp);
+    canvas.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") pointerInside = true; });
+    canvas.addEventListener("pointerleave", () => { pointerInside = false; if (hoverId !== null) { hoverId = null; requestRender(); } });
+    labelLayer.addEventListener("pointerenter", () => { pointerInside = true; }, true);
     canvas.addEventListener("pointercancel", onUp);
     canvas.addEventListener("lostpointercapture", onUp);
     window.addEventListener("pointerup", onUp);
@@ -370,6 +485,7 @@ export async function createTerrain(container, lakes, options = {}) {
   document.addEventListener("visibilitychange", onVis);
 
   resize();
+  setMode(satMat && options.mode !== "relief" ? "satellite" : "relief");
   if (options.focusId) focus(options.focusId, { immediate: true });
   placeCamera();
   requestRender();
@@ -378,6 +494,11 @@ export async function createTerrain(container, lakes, options = {}) {
   return {
     focus,
     setYear,
+    select,
+    setMode,
+    get mode() { return mode; },
+    hasSatellite: !!satMat,
+    satelliteDate: meta.satellite_date || null,
     dispose() {
       disposed = true;
       cancelAnimationFrame(raf);

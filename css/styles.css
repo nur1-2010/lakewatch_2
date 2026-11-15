@@ -444,6 +444,84 @@ table.years td.bar-cell { width: 36%; min-width: 90px; }
 .disclaimer { color: #fff; font-weight: 600; }
 .beta { margin-top: var(--s-3); color: var(--dawn-300); }
 
+/* ---------- загрузка: полоска вверху, запасной экран до старта скрипта ---------- */
+.progress { position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 3000; overflow: hidden; background: rgba(63, 208, 196, .18); }
+.progress::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, var(--glacier-300), var(--glacier-500), var(--dawn-500));
+  animation: progress-run 1.1s var(--ease) infinite; }
+@keyframes progress-run { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+.boot-msg { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-6) 0; color: var(--muted); font-size: 15px; }
+.spinner { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid rgba(20, 133, 127, .25); border-top-color: var(--glacier-600); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.page-head.boot h1 { max-width: 20ch; }
+
+/* ---------- 3D-сцена: переключатель, подсказка, карточка выбранного озера ---------- */
+.t3d-ui { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.t3d-ui > * { pointer-events: auto; }
+.t3d-tools { position: absolute; top: var(--s-4); right: var(--s-5); display: grid; gap: var(--s-2); justify-items: end; }
+.t3d-modes { display: flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgba(11, 42, 39, .62); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, .22); }
+.t3d-modes button { border: 0; cursor: pointer; min-height: 38px; padding: 0 14px; border-radius: 999px; font: 600 13px/1 var(--font); color: #cfe6dd; background: transparent; transition: background var(--fast) var(--ease), color var(--fast) var(--ease); }
+.t3d-modes button:hover { color: #fff; }
+.t3d-modes button[aria-pressed="true"] { color: var(--pine-900); background: linear-gradient(135deg, #fff, #c9efe4); }
+.t3d-tip { margin: 0; max-width: 250px; text-align: right; font-size: 12px; line-height: 1.4; color: #e3f1ea; text-shadow: 0 1px 8px rgba(11, 42, 39, .8); pointer-events: none; }
+.t3d-card { position: absolute; right: var(--s-5); top: 110px; width: min(340px, calc(100% - 32px)); display: grid; gap: var(--s-2);
+  padding: var(--s-5); border-radius: var(--r-lg); color: var(--fg);
+  background: linear-gradient(150deg, rgba(255, 255, 255, .95), rgba(230, 243, 236, .9)); border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 24px 60px -20px rgba(11, 42, 39, .55); backdrop-filter: blur(12px); animation: card-in 260ms var(--ease) both; }
+.t3d-card[hidden] { display: none; }
+@keyframes card-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.t3d-card h3 { font-size: 26px; padding-right: 36px; }
+.t3d-card-area { display: flex; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; }
+.t3d-card-area b { font-family: var(--display); font-size: 34px; font-weight: 600; line-height: 1; color: var(--pine-700); font-variant-numeric: lining-nums proportional-nums; }
+.t3d-card-where { font-size: 13.5px; color: var(--muted); }
+.t3d-card-head { font-size: 14px; line-height: 1.45; color: var(--fg); }
+.t3d-card-actions { display: grid; grid-template-columns: 46px 1fr 46px; gap: var(--s-2); margin-top: var(--s-2); }
+.t3d-card-actions .btn { justify-content: center; }
+.t3d-step { border: 0; cursor: pointer; min-height: 46px; border-radius: 999px; display: grid; place-items: center; color: var(--pine-800); background: rgba(255, 255, 255, .85); box-shadow: var(--shadow); }
+.t3d-step:hover { background: #fff; }
+.t3d-step[data-act="prev"] .icon { transform: rotate(180deg); }
+.t3d-card-count { font-size: 12px; color: var(--muted); text-align: center; }
+.t3d-close { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border: 0; border-radius: 50%; cursor: pointer; font-size: 24px; line-height: 1; color: var(--pine-800); background: rgba(255, 255, 255, .7); }
+.t3d-close:hover { background: #fff; }
+@media (max-width: 899px) {
+  .t3d-tools { top: var(--s-2); right: var(--s-2); }
+  .t3d-tip { display: none; }
+  .t3d-card { inset: auto var(--s-2) var(--s-2) var(--s-2); width: auto; top: auto; padding: var(--s-4); gap: 6px; }
+  .t3d-card h3 { font-size: 21px; }
+  .t3d-card-area b { font-size: 26px; }
+  .t3d-card-head, .t3d-card-where, .t3d-card-count, .t3d-card .badge { display: none; }
+  body[data-stage="hero"] #view { margin-top: 0; }     /* на телефоне сцена — отдельный блок, не заезжаем на неё */
+  .t3d-card-actions { margin-top: 2px; }
+  .hero3d .t3d { height: 440px; }
+  .hero3d.compact .t3d { height: 380px; }
+}
+
+/* ---------- сели, которые уже случались ---------- */
+.mud-figures { margin-bottom: var(--s-6); }
+.muds { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-5); }
+.mud { display: grid; grid-template-columns: 1fr; gap: var(--s-3); }
+@media (min-width: 900px) { .mud { grid-template-columns: 150px minmax(0, 1fr); gap: var(--s-5); } }
+.mud-year { font-family: var(--display); font-weight: 600; font-size: clamp(48px, 6vw, 76px); line-height: .9; font-variant-numeric: lining-nums proportional-nums;
+  background: linear-gradient(160deg, var(--ember-600), var(--dawn-500)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@media (min-width: 900px) { .mud-year { position: sticky; top: 96px; align-self: start; } }
+.mud-body { padding: var(--s-6); border-radius: var(--r-lg); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow); display: grid; gap: var(--s-3); min-width: 0; }
+.mud-meta { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.mud-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 5px 12px 5px 9px; border-radius: 999px; }
+.mud-kind.kind-outburst { color: var(--alert); background: linear-gradient(135deg, var(--alert-a), var(--alert-b)); }
+.mud-kind.kind-rain { color: #2c5d7a; background: linear-gradient(135deg, #e1eef4, #c6dde8); }
+.mud-kind.kind-human { color: var(--watch); background: linear-gradient(135deg, var(--watch-a), var(--watch-b)); }
+.mud-body h3 { font-size: 30px; }
+.mud-place { color: var(--muted); font-size: 15px; }
+.mud-grid { display: grid; gap: var(--s-5); grid-template-columns: 1fr; margin-top: var(--s-2); }
+@media (min-width: 900px) { .mud-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } .mud-grid.no-img { grid-template-columns: 1fr; } }
+.mud-facts { margin: 0; display: grid; gap: var(--s-4); align-content: start; }
+.mud-facts dt { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--glacier-600); margin-bottom: 4px; }
+.mud-facts dd { margin: 0; line-height: 1.6; }
+.mud-fig { margin: 0; }
+.mud-fig img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r-md); display: block; box-shadow: var(--shadow); background: var(--pine-800); }
+.mud-fig figcaption { font-size: 13px; color: var(--muted); margin-top: var(--s-2); }
+.mud-src summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--pine-600); min-height: 44px; display: flex; align-items: center; }
+.mud-src .source-list { margin-top: var(--s-1); }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

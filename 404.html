@@ -1,1 +1,11 @@
-<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=/"><title>LakeWatch</title><p><a href="/">LakeWatch</a></p>
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LakeWatch</title>
+<script>
+  (function () {
+    var parts = location.pathname.split("/").filter(Boolean);
+    var base = /\.github\.io$/.test(location.hostname) && parts.length ? "/" + parts[0] + "/" : "/";
+    location.replace(base + location.hash);
+  })();
+</script></head>
+<body style="font-family:system-ui,sans-serif;padding:32px"><p><a href="/">LakeWatch</a></p></body></html>

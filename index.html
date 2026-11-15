@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LakeWatch · Ile Alatau</title>
-  <meta name="description" content="Open satellite monitoring of mountain lakes above Almaty / Алматы үстіндегі тау көлдерін ашық бақылау / Открытый мониторинг горных озёр над Алматы">
+  <title>LakeWatch · Озёра Иле-Алатау</title>
+  <meta name="description" content="Открытый спутниковый мониторинг горных озёр над Алматы. Алматы үстіндегі тау көлдерін ашық бақылау. Open satellite monitoring of mountain lakes above Almaty.">
   <meta name="theme-color" content="#0f3b36">
   <!-- Политика безопасности: страница выполняет только собственные скрипты, не отправляет никуда данные,
        не встраивает чужие объекты. Картинки карты — только с сервера спутниковой подложки. -->
@@ -18,7 +18,10 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+  <!-- Тексты ниже — запасные (по-русски): их видно, даже если скрипт ещё не загрузился.
+       Потом js/app.js заменяет их на выбранный язык. -->
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Перейти к содержанию</a>
+  <div id="progress" class="progress" role="progressbar" aria-label="Загрузка" hidden></div>
 
   <header class="site-header">
     <div class="wrap header-row">
@@ -29,12 +32,12 @@
         <b data-i18n="app.brand">LakeWatch</b>
       </a>
       <nav class="nav" aria-label="Main">
-        <a href="#/" data-nav="home" data-i18n="nav.home"></a>
-        <a href="#/lakes" data-nav="lakes" data-i18n="nav.lakes"></a>
-        <a href="#/map" data-nav="map" data-i18n="nav.map"></a>
-        <a href="#/risk" data-nav="risk" data-i18n="nav.risk"></a>
-        <a href="#/method" data-nav="method" data-i18n="nav.method"></a>
-        <a href="#/about" data-nav="about" data-i18n="nav.about"></a>
+        <a href="#/" data-nav="home" data-i18n="nav.home">Обзор</a>
+        <a href="#/lakes" data-nav="lakes" data-i18n="nav.lakes">Озёра</a>
+        <a href="#/map" data-nav="map" data-i18n="nav.map">Карта</a>
+        <a href="#/risk" data-nav="risk" data-i18n="nav.risk">Почему опасно</a>
+        <a href="#/method" data-nav="method" data-i18n="nav.method">Метод</a>
+        <a href="#/about" data-nav="about" data-i18n="nav.about">О проекте</a>
       </nav>
       <div class="lang" role="group" aria-label="Language / Тіл / Язык">
         <button type="button" data-lang="kk" lang="kk" aria-label="Қазақша">Қаз</button>
@@ -45,10 +48,21 @@
   </header>
 
   <!-- сцена: 3D-рельеф или шапка страницы; содержимое рисует js/app.js -->
-  <div id="stage"></div>
+  <div id="stage">
+    <section class="page-head boot" aria-hidden="true">
+      <div class="ridges"><i></i><i></i><i></i></div>
+      <div class="wrap">
+        <p class="kicker label">Иле-Алатау · спутниковый мониторинг</p>
+        <h1>Что происходит с горными озёрами над Алматы</h1>
+      </div>
+    </section>
+  </div>
 
   <main id="main" tabindex="-1">
-    <div id="view" class="wrap"><p class="muted" data-i18n="loading"></p></div>
+    <div id="view" class="wrap">
+      <div class="boot-msg" role="status"><span class="spinner" aria-hidden="true"></span><span data-i18n="loading">Загрузка…</span></div>
+      <noscript><p class="boot-msg">Для работы сайта нужен включённый JavaScript. / Сайт жұмыс істеуі үшін JavaScript қосулы болуы керек. / Please enable JavaScript.</p></noscript>
+    </div>
   </main>
 
   <footer class="site-footer">
@@ -57,19 +71,19 @@
       <div class="wrap footer-grid">
         <div>
           <p class="footer-brand" data-i18n="app.brand">LakeWatch</p>
-          <p data-i18n="app.tagline"></p>
+          <p data-i18n="app.tagline">Открытый спутниковый мониторинг горных озёр над Алматы</p>
           <p class="beta" data-i18n="beta.notice"></p>
         </div>
         <nav aria-label="Footer">
-          <p class="footer-h" data-i18n="footer.nav"></p>
-          <a href="#/lakes" data-i18n="nav.lakes"></a>
-          <a href="#/map" data-i18n="nav.map"></a>
-          <a href="#/risk" data-i18n="nav.risk"></a>
-          <a href="#/method" data-i18n="nav.method"></a>
-          <a href="#/about" data-i18n="nav.about"></a>
+          <p class="footer-h" data-i18n="footer.nav">Разделы</p>
+          <a href="#/lakes" data-i18n="nav.lakes">Озёра</a>
+          <a href="#/map" data-i18n="nav.map">Карта</a>
+          <a href="#/risk" data-i18n="nav.risk">Почему опасно</a>
+          <a href="#/method" data-i18n="nav.method">Метод</a>
+          <a href="#/about" data-i18n="nav.about">О проекте</a>
         </nav>
         <div>
-          <p class="disclaimer" data-i18n="disclaimer"></p>
+          <p class="disclaimer" data-i18n="disclaimer">Это открытый исследовательский проект, а не официальная система оповещения. Официальная информация о селевой опасности — МЧС Республики Казахстан и ГУ «Казселезащита». Экстренный номер: 112.</p>
           <p data-i18n="footer.data"></p>
           <p id="updated"></p>
         </div>

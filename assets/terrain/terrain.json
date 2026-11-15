@@ -53,5 +53,8 @@
       "height": 148
     }
   ],
-  "source": "Copernicus DEM GLO-30 (ESA) via Microsoft Planetary Computer"
+  "source": "Copernicus DEM GLO-30 (ESA) via Microsoft Planetary Computer",
+  "satellite": "satellite.jpg",
+  "satellite_date": "2026-08-27",
+  "satellite_item": "S2C_MSIL2A_20260827T054631_R048_T43TFH_20260827T091314"
 }
