@@ -40,9 +40,14 @@ function loadHeightmap() {
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const images = await Promise.all(meta.parts.map((p) => loadImage(`assets/terrain/${p.file}`)));
+    // Каждый кусок растягиваем ровно на его участок общей сетки: и левый, и правый край считаются
+    // из координат. Раньше куски ставились по своему размеру в пикселях, а у верхних и нижних кусков
+    // он немного разный — на стыке по 43° с. ш. оставалась пустая полоса, и в рельефе получался «провал».
+    const sx = W / (x1 - x0), sy = H / (y1 - y0);
     meta.parts.forEach((p, i) => {
-      const dx = Math.round((p.bbox[0] - x0) * ppdX), dy = Math.round((y1 - p.bbox[3]) * ppdY);   // север — сверху
-      ctx.drawImage(images[i], dx, dy, p.width, p.height);
+      const px0 = Math.round((p.bbox[0] - x0) * sx), px1 = Math.round((p.bbox[2] - x0) * sx);
+      const py0 = Math.round((y1 - p.bbox[3]) * sy), py1 = Math.round((y1 - p.bbox[1]) * sy);   // север — сверху
+      ctx.drawImage(images[i], px0, py0, px1 - px0, py1 - py0);
     });
     const px = ctx.getImageData(0, 0, W, H).data;
     const raw = new Float32Array(W * H);
