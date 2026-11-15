@@ -360,7 +360,7 @@ export async function createTerrain(container, lakes, options = {}) {
     // на узком экране отодвигаем камеру, чтобы блок рельефа помещался целиком
     // чем уже окно, тем шире угол обзора — чтобы блок рельефа помещался целиком
     const narrow = width < 900;
-    distScale = narrow ? 0.74 : 1;
+    distScale = narrow ? 0.62 : 1;
     camera.fov = Math.min(62, 34 * Math.max(1, 1.45 / (width / height)));
     // на широком экране сдвигаем сцену вправо, чтобы слева осталось место для заголовка
     if (!narrow && (options.shiftX || options.shiftY)) {
@@ -423,13 +423,44 @@ export async function createTerrain(container, lakes, options = {}) {
   function requestRender() { needsRender = true; if (!raf && !disposed) { last = performance.now(); raf = requestAnimationFrame(frame); } }
 
   // ---------------------------------------------------------------- управление
+  // Приближение: ограничиваем, чтобы не залететь внутрь горы и не улететь так, что рельеф станет точкой.
+  const ZOOM_MIN = 5, ZOOM_MAX = 80;
+  function zoomBy(factor) {
+    goal.dist = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, goal.dist * factor));
+    touched = true;
+    requestRender();
+  }
+
+  // Все пальцы (указатели), которые сейчас касаются сцены. Два пальца — приближение, а не поворот.
+  const pointers = new Map();
+  let pinchStart = 0, pinchDist = 0;
+  const spread = () => { const [a, b] = [...pointers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+
   const onDown = (e) => {
-    dragging = true; moved = 0; touched = true;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { canvas.setPointerCapture?.(e.pointerId); } catch { /* некоторые браузеры не дают захватить палец — не страшно */ }
+    touched = true;
+    if (pointers.size >= 2) {             // второй палец: переходим от поворота к приближению
+      pinchStart = spread(); pinchDist = goal.dist;
+      dragging = false; moved = 99;        // это не нажатие на озеро
+      return;
+    }
+    dragging = true; moved = 0;
     lastX = downX = e.clientX; lastY = downY = e.clientY;
-    canvas.setPointerCapture?.(e.pointerId); canvas.classList.add("is-drag"); requestRender();
+    canvas.classList.add("is-drag"); requestRender();
   };
   let hoverQueued = false, hoverX = 0, hoverY = 0;
   const onMove = (e) => {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      const d = spread();
+      if (pinchStart > 0 && d > 0) {
+        goal.dist = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinchDist * (pinchStart / d)));
+        view.dist = goal.dist;
+        requestRender();
+      }
+      return;
+    }
     if (!dragging) {
       // наведение мышью: подсвечиваем озеро под курсором и показываем его название
       if (e.pointerType !== "mouse") return;
@@ -455,11 +486,22 @@ export async function createTerrain(container, lakes, options = {}) {
     lastX = e.clientX; lastY = e.clientY;
     requestRender();
   };
-  const onUp = () => { dragging = false; canvas.classList.remove("is-drag"); };
+  const onUp = (e) => {
+    if (e?.pointerId !== undefined) pointers.delete(e.pointerId);
+    else pointers.clear();
+    if (pointers.size === 1) {               // после приближения остался один палец — продолжаем поворот с его места
+      const [p] = pointers.values();
+      lastX = p.x; lastY = p.y; dragging = true; moved = 99;
+      return;
+    }
+    pinchStart = 0;
+    dragging = false; canvas.classList.remove("is-drag");
+  };
   // Отпускание на сцене: если указатель почти не двигался — это нажатие, а не поворот.
   const onCanvasUp = (e) => {
-    const wasDrag = dragging;
-    onUp();
+    const wasDrag = dragging && pointers.size <= 1;
+    onUp(e);
+    if (pointers.size > 0) return;
     if (!wasDrag || moved > 6 || Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
     const m = pickAt(e.clientX, e.clientY);
     if (m) select(m.lake.id);
@@ -469,6 +511,13 @@ export async function createTerrain(container, lakes, options = {}) {
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onCanvasUp);
+    // Колесо мыши с Ctrl и щипок на тачпаде ноутбука (браузер присылает его как Ctrl + колесо).
+    // Просто колесо не трогаем — им листают страницу.
+    canvas.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      zoomBy(Math.exp(e.deltaY * 0.01));
+    }, { passive: false });
     canvas.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") pointerInside = true; });
     canvas.addEventListener("pointerleave", () => { pointerInside = false; if (hoverId !== null) { hoverId = null; requestRender(); } });
     labelLayer.addEventListener("pointerenter", () => { pointerInside = true; }, true);
@@ -485,7 +534,7 @@ export async function createTerrain(container, lakes, options = {}) {
   document.addEventListener("visibilitychange", onVis);
 
   resize();
-  setMode(satMat && options.mode !== "relief" ? "satellite" : "relief");
+  setMode(options.mode === "satellite" ? "satellite" : "relief");     // по умолчанию — прежний вид «Рельеф»
   if (options.focusId) focus(options.focusId, { immediate: true });
   placeCamera();
   requestRender();
@@ -496,6 +545,7 @@ export async function createTerrain(container, lakes, options = {}) {
     setYear,
     select,
     setMode,
+    zoomBy,
     get mode() { return mode; },
     hasSatellite: !!satMat,
     satelliteDate: meta.satellite_date || null,

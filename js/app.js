@@ -157,6 +157,10 @@ function mountSceneUi(host, terrain) {
         <button type="button" data-mode="satellite">${esc(t("terrain.satellite"))}</button>
         <button type="button" data-mode="relief">${esc(t("terrain.relief"))}</button>
       </div>` : ""}
+      <div class="t3d-zoom" role="group" aria-label="${esc(t("scene.zoom"))}">
+        <button type="button" data-zoom="in" aria-label="${esc(t("scene.zoom_in"))}">+</button>
+        <button type="button" data-zoom="out" aria-label="${esc(t("scene.zoom_out"))}">−</button>
+      </div>
       <p class="t3d-tip">${esc(t("terrain.tip"))}</p>
     </div>
     <section class="t3d-card" id="t3d-card" hidden aria-live="polite"></section>`;
@@ -168,6 +172,8 @@ function mountSceneUi(host, terrain) {
     syncModes();
   }));
   syncModes();
+  ui.querySelectorAll("[data-zoom]").forEach((b) => b.addEventListener("click", () =>
+    terrain.zoomBy(b.dataset.zoom === "in" ? 0.75 : 1 / 0.75)));
 }
 
 // Карточка озера, выбранного на 3D-сцене. Стрелки листают озёра по порядку списка,
@@ -604,6 +610,7 @@ function tabOverview(d) {
       <h2 id="mean-h">${icon(STATUS_ICON[a.status] || "info", "sm")}${esc(t("detail.meaning"))}</h2>
       <p>${esc(findings[0] ? msg(findings[0]) : "")}</p><div class="links">${esc(t(a.meaning))}</div>
     </section>` : ""}
+    ${d.previews?.length ? `<section class="block frames" id="frames" aria-labelledby="img-h"></section>` : ""}
     <section class="block" aria-labelledby="find-h">
       <h2 id="find-h">${esc(t("detail.findings"))}</h2>
       <ul class="findings">${findings.slice(a.meaning ? 1 : 0).map(findingItem).join("")}</ul>
@@ -706,7 +713,7 @@ function renderLake(d, tab) {
     draw();
     document.getElementById("rej").addEventListener("change", (e) => { state.showRejected = e.target.checked; draw(); });
   }
-  if (tab === "images" && d.previews?.length) renderFrames(d.previews, d.preview_frame_scale || 1, lake);
+  if ((tab === "images" || tab === "overview") && d.previews?.length) renderFrames(d.previews, d.preview_frame_scale || 1, lake);
   if (tab === "place") {
     const map = L.map("lake-map", { scrollWheelZoom: false });
     satelliteLayer().addTo(map);

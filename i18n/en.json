@@ -89,7 +89,7 @@
   "stat.total": "Combined lake area",
   "terrain.hint": "Drag to rotate",
   "terrain.aria": "3D model of the Ile Alatau terrain with the lakes marked",
-  "terrain.caption": "Real terrain from Copernicus DEM elevation data, draped with a Sentinel-2 satellite image. Seen from Almaty looking south. Heights are exaggerated 1.35× and lakes are drawn larger than life.",
+  "terrain.caption": "Real terrain from Copernicus DEM elevation data, seen from Almaty looking south. In “Satellite” mode the mountains are draped with a Sentinel-2 image. Heights are exaggerated 1.35× and lakes are drawn larger than life.",
   "stat.lakes": "Lakes monitored",
   "stat.attention": "Need attention",
   "stat.images": "Image measurements",
@@ -227,7 +227,7 @@
   "terrain.mode": "Terrain view",
   "terrain.satellite": "Satellite",
   "terrain.relief": "Relief",
-  "terrain.tip": "Click a dot to fly to that lake. Drag to rotate.",
+  "terrain.tip": "Click a dot to fly to that lake. Drag to rotate; pinch with two fingers or use + and − to zoom.",
   "scene.close": "Close",
   "scene.prev": "Previous lake",
   "scene.next": "Next lake",
@@ -286,5 +286,8 @@
   "mud.2024.cause": "A heavy downpour. According to Kazhydromet scientists, the slopes had been weakened because the soil and vegetation were disturbed when ski runs were graded about 11 years earlier.",
   "mud.2024.course": "The mudflow formed during intense rain while air temperatures were high.",
   "mud.2024.damage": "Scientists described this mudflow as anthropogenic, meaning it was caused in part by human activity.",
-  "mud.2024.img": "The Shymbulak slopes today"
+  "mud.2024.img": "The Shymbulak slopes today",
+  "scene.zoom": "Zoom",
+  "scene.zoom_in": "Zoom in",
+  "scene.zoom_out": "Zoom out"
 }

@@ -462,6 +462,11 @@ table.years td.bar-cell { width: 36%; min-width: 90px; }
 .t3d-modes button { border: 0; cursor: pointer; min-height: 38px; padding: 0 14px; border-radius: 999px; font: 600 13px/1 var(--font); color: #cfe6dd; background: transparent; transition: background var(--fast) var(--ease), color var(--fast) var(--ease); }
 .t3d-modes button:hover { color: #fff; }
 .t3d-modes button[aria-pressed="true"] { color: var(--pine-900); background: linear-gradient(135deg, #fff, #c9efe4); }
+.t3d-zoom { display: flex; gap: 6px; }
+.t3d-zoom button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); cursor: pointer;
+  font: 600 22px/1 var(--font); color: #fff; background: rgba(11, 42, 39, .62); backdrop-filter: blur(8px);
+  transition: background var(--fast) var(--ease); }
+.t3d-zoom button:hover { background: rgba(11, 42, 39, .85); }
 .t3d-tip { margin: 0; max-width: 250px; text-align: right; font-size: 12px; line-height: 1.4; color: #e3f1ea; text-shadow: 0 1px 8px rgba(11, 42, 39, .8); pointer-events: none; }
 .t3d-card { position: absolute; right: var(--s-5); top: 110px; width: min(340px, calc(100% - 32px)); display: grid; gap: var(--s-2);
   padding: var(--s-5); border-radius: var(--r-lg); color: var(--fg);
