@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LakeWatch · Ile Alatau</title>
+  <meta name="description" content="Open satellite monitoring of mountain lakes above Almaty / Алматы үстіндегі тау көлдерін ашық бақылау / Открытый мониторинг горных озёр над Алматы">
+  <meta name="theme-color" content="#0f3b36">
+  <!-- Политика безопасности: страница выполняет только собственные скрипты, не отправляет никуда данные,
+       не встраивает чужие объекты. Картинки карты — только с сервера спутниковой подложки. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://server.arcgisonline.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230f3b36'/%3E%3Cpath d='M4 21 12 8l4 6 3-4 9 11z' fill='%23bfe6d6'/%3E%3Cpath d='M7 25h18' stroke='%233fd0c4' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="vendor/leaflet.min.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a href="#/" class="brand" aria-label="LakeWatch">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1c6b5c"/><stop offset="1" stop-color="#0f3b36"/></linearGradient></defs>
+          <rect width="32" height="32" rx="9" fill="url(#bm)"/><path d="M4 21 12 8l4 6 3-4 9 11z" fill="#bfe6d6"/><path d="M7 25h18" stroke="#3fd0c4" stroke-width="2.6" stroke-linecap="round"/></svg>
+        <b data-i18n="app.brand">LakeWatch</b>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a href="#/" data-nav="home" data-i18n="nav.home"></a>
+        <a href="#/lakes" data-nav="lakes" data-i18n="nav.lakes"></a>
+        <a href="#/map" data-nav="map" data-i18n="nav.map"></a>
+        <a href="#/risk" data-nav="risk" data-i18n="nav.risk"></a>
+        <a href="#/method" data-nav="method" data-i18n="nav.method"></a>
+        <a href="#/about" data-nav="about" data-i18n="nav.about"></a>
+      </nav>
+      <div class="lang" role="group" aria-label="Language / Тіл / Язык">
+        <button type="button" data-lang="kk" lang="kk" aria-label="Қазақша">Қаз</button>
+        <button type="button" data-lang="ru" lang="ru" aria-label="Русский">Рус</button>
+        <button type="button" data-lang="en" lang="en" aria-label="English">Eng</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- сцена: 3D-рельеф или шапка страницы; содержимое рисует js/app.js -->
+  <div id="stage"></div>
+
+  <main id="main" tabindex="-1">
+    <div id="view" class="wrap"><p class="muted" data-i18n="loading"></p></div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="ridge" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="footer-body">
+      <div class="wrap footer-grid">
+        <div>
+          <p class="footer-brand" data-i18n="app.brand">LakeWatch</p>
+          <p data-i18n="app.tagline"></p>
+          <p class="beta" data-i18n="beta.notice"></p>
+        </div>
+        <nav aria-label="Footer">
+          <p class="footer-h" data-i18n="footer.nav"></p>
+          <a href="#/lakes" data-i18n="nav.lakes"></a>
+          <a href="#/map" data-i18n="nav.map"></a>
+          <a href="#/risk" data-i18n="nav.risk"></a>
+          <a href="#/method" data-i18n="nav.method"></a>
+          <a href="#/about" data-i18n="nav.about"></a>
+        </nav>
+        <div>
+          <p class="disclaimer" data-i18n="disclaimer"></p>
+          <p data-i18n="footer.data"></p>
+          <p id="updated"></p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <div id="tooltip" class="tooltip" role="status" hidden></div>
+
+  <!-- Библиотеки лежат рядом с сайтом (папка vendor), а не грузятся с чужих серверов:
+       если чужой сервер взломают или он упадёт, на наш сайт это не повлияет. -->
+  <script src="vendor/leaflet.min.js"></script>
+  <script src="vendor/three.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
