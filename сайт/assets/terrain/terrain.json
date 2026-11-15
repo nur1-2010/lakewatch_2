@@ -1,0 +1,60 @@
+{
+  "bbox": [
+    76.93,
+    42.955,
+    77.19,
+    43.135
+  ],
+  "elev_min": 1400,
+  "elev_max": 4700,
+  "parts": [
+    {
+      "file": "dem_42_76.png",
+      "bbox": [
+        76.93,
+        42.955,
+        77,
+        43
+      ],
+      "width": 77,
+      "height": 50
+    },
+    {
+      "file": "dem_42_77.png",
+      "bbox": [
+        77,
+        42.955,
+        77.19,
+        43
+      ],
+      "width": 209,
+      "height": 50
+    },
+    {
+      "file": "dem_43_76.png",
+      "bbox": [
+        76.93,
+        43,
+        77,
+        43.135
+      ],
+      "width": 77,
+      "height": 148
+    },
+    {
+      "file": "dem_43_77.png",
+      "bbox": [
+        77,
+        43,
+        77.19,
+        43.135
+      ],
+      "width": 209,
+      "height": 148
+    }
+  ],
+  "source": "Copernicus DEM GLO-30 (ESA) via Microsoft Planetary Computer",
+  "satellite": "satellite.jpg",
+  "satellite_date": "2026-08-27",
+  "satellite_item": "S2C_MSIL2A_20260827T054631_R048_T43TFH_20260827T091314"
+}
